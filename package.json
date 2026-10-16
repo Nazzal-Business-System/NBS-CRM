@@ -1,0 +1,18 @@
+{
+  "name": "nbs-crm-professional",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "engines": {"node": ">=22.12.0"},
+  "scripts": {
+    "predev": "npm run db:generate && npm run build -w @nbs-crm/shared",
+    "dev": "concurrently -k \"npm run dev -w @nbs-crm/shared\" \"npm run dev -w @nbs-crm/web\" \"npm run dev -w @nbs-crm/api\"",
+    "build": "npm run build -w @nbs-crm/shared && npm run build -w @nbs-crm/api && npm run build -w @nbs-crm/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run build -w @nbs-crm/shared && npm run typecheck --workspaces --if-present",
+    "db:validate": "npm run db:validate -w @nbs-crm/api",
+    "db:generate": "npm run db:generate -w @nbs-crm/api"
+  },
+  "devDependencies": {"concurrently": "^9.2.1", "typescript": "~5.9.3", "eslint": "^9.39.0", "@eslint/js": "^9.39.0", "typescript-eslint": "^8.46.0"}
+}

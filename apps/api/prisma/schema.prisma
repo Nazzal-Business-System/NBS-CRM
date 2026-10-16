@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AccessScope {
+  OWN
+  TEAM
+  ALL
+}
+
+model Person {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String    @db.VarChar(160)
+  email      String?   @db.VarChar(254)
+  phone      String?   @db.VarChar(40)
+  archivedAt DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(3)
+  user       User?
+
+  @@index([name])
+  @@index([email])
+  @@map("people")
+}
+
+model User {
+  id              String       @id @default(uuid()) @db.Uuid
+  personId        String       @unique @db.Uuid
+  person          Person       @relation(fields: [personId], references: [id], onDelete: Restrict)
+  email           String       @unique @db.VarChar(254)
+  passwordHash    String       @db.VarChar(512)
+  roleId          String       @db.Uuid
+  role            Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  isActive        Boolean      @default(true)
+  securityVersion Int          @default(1)
+  locale          String       @default("en") @db.VarChar(5)
+  timezone        String?      @db.VarChar(64)
+  lastLoginAt     DateTime?    @db.Timestamptz(3)
+  createdAt       DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime     @updatedAt @db.Timestamptz(3)
+  memberships     TeamMember[]
+  sessions        Session[]
+  auditLogs       AuditLog[]
+
+  @@index([roleId, isActive])
+  @@map("users")
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique @db.VarChar(80)
+  name        String           @unique @db.VarChar(120)
+  description String?          @db.VarChar(500)
+  isSystem    Boolean          @default(false)
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  key         String           @id @db.VarChar(100)
+  description String           @db.VarChar(250)
+  roles       RolePermission[]
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId        String      @db.Uuid
+  permissionKey String      @db.VarChar(100)
+  scope         AccessScope @default(OWN)
+  role          Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission    Permission  @relation(fields: [permissionKey], references: [key], onDelete: Restrict)
+  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime    @updatedAt @db.Timestamptz(3)
+
+  @@id([roleId, permissionKey])
+  @@index([permissionKey])
+  @@map("role_permissions")
+}
+
+model Team {
+  id         String       @id @default(uuid()) @db.Uuid
+  name       String       @unique @db.VarChar(120)
+  archivedAt DateTime?    @db.Timestamptz(3)
+  createdAt  DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime     @updatedAt @db.Timestamptz(3)
+  members    TeamMember[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  teamId    String   @db.Uuid
+  userId    String   @db.Uuid
+  isManager Boolean  @default(false)
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@id([teamId, userId])
+  @@index([userId])
+  @@map("team_members")
+}
+
+model Session {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  user             User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  tokenHash        String    @unique @db.Char(64)
+  csrfHash         String    @db.Char(64)
+  securityVersion  Int
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  lastSeenAt       DateTime  @default(now()) @db.Timestamptz(3)
+  idleExpiresAt    DateTime  @db.Timestamptz(3)
+  expiresAt        DateTime  @db.Timestamptz(3)
+  revokedAt        DateTime? @db.Timestamptz(3)
+  revocationReason String?   @db.VarChar(80)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@index([idleExpiresAt])
+  @@map("sessions")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorUserId String?  @db.Uuid
+  actor       User?    @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  action      String   @db.VarChar(100)
+  entityType  String   @db.VarChar(80)
+  entityId    String?  @db.VarChar(100)
+  requestId   String?  @db.VarChar(100)
+  changes     Json?
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([createdAt, id])
+  @@index([actorUserId, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@map("audit_logs")
+}
+
+model Currency {
+  code       String              @id @db.VarChar(3)
+  name       String              @db.VarChar(80)
+  minorUnits Int
+  isActive   Boolean             @default(true)
+  createdAt  DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime            @updatedAt @db.Timestamptz(3)
+  workspaces WorkspaceSettings[]
+
+  @@map("currencies")
+}
+
+model WorkspaceSettings {
+  id                  Int      @id @default(1)
+  defaultCurrencyCode String   @db.VarChar(3)
+  defaultCurrency     Currency @relation(fields: [defaultCurrencyCode], references: [code], onDelete: Restrict)
+  timezone            String   @db.VarChar(64)
+  locale              String   @default("en") @db.VarChar(5)
+  weekStartsOn        Int      @default(1)
+  createdAt           DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([defaultCurrencyCode])
+  @@map("workspace_settings")
+}
